@@ -51,8 +51,9 @@ jobs:
       - name: Build kernel
         run: |
           cd /tmp/kernel-4.4
-          # Fix execute permissions lost during extraction
+          # Fix execute permissions and Python 2 compat
           chmod +x tools/dct/DrvGen.py scripts/drvgen/*
+          sudo apt-get update -qq && sudo apt-get install -y -qq python2
           make ARCH=arm64 -j$(nproc) Image.gz-dtb
           ls -lh arch/arm64/boot/Image.gz-dtb
 
