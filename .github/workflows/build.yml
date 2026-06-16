@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout
@@ -38,22 +38,20 @@ jobs:
         run: |
           cd /tmp/kernel-4.4
           make ARCH=arm64 dura64_defconfig
-          # Append board-specific config for DRA-AL00
           cat arch/arm64/configs/dura64_board_AL00A_defconfig >> .config
           make ARCH=arm64 olddefconfig
-          # Add SELinux default permissive
           echo "CONFIG_SECURITY_SELINUX_BOOTPARAM_VALUE=0" >> .config
-          # Regenerate
           make ARCH=arm64 olddefconfig
-          # Verify the change
           grep SELINUX_BOOTPARAM .config
 
       - name: Build kernel
         run: |
           cd /tmp/kernel-4.4
-          # Fix execute permissions and convert DrvGen.py to Python 3
           chmod +x tools/dct/DrvGen.py scripts/drvgen/*
-          2to3 -w tools/dct/DrvGen.py > /dev/null 2>&1
+          # Install python2 from deadsnakes PPA (Ubuntu 20.04 supports it)
+          sudo add-apt-repository ppa:deadsnakes/ppa -y
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python2
           make ARCH=arm64 -j$(nproc) Image.gz-dtb
           ls -lh arch/arm64/boot/Image.gz-dtb
 
