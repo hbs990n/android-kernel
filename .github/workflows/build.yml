@@ -35,7 +35,7 @@ jobs:
           cd $GITHUB_WORKSPACE
           # Fix DrvGen.py for Python 3 with 2to3
           sudo apt-get install -y -qq python3-lib2to3
-          2to3-3.12 -w tools/dct/DrvGen.py > /dev/null 2>&1
+          python3 -m lib2to3 -w tools/dct/DrvGen.py > /dev/null 2>&1
           # Also fix the shebang line
           sed -i 's|#!/usr/bin/python2|#!/usr/bin/python3|' tools/dct/DrvGen.py
           git config user.name "github-actions"
