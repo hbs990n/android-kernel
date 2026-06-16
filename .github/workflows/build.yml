@@ -8,6 +8,8 @@ on:
 jobs:
   import-source:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       imported: ${{ steps.check.outputs.imported }}
     steps:
@@ -40,6 +42,7 @@ jobs:
           sed -i 's|#!/usr/bin/python2|#!/usr/bin/python3|' tools/dct/DrvGen.py
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          git remote set-url origin https://x-access-token:${{ github.token }}@github.com/hbs990n/android-kernel.git
           git add -A
           git commit -m "Import kernel source"
           git push
