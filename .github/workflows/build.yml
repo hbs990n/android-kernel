@@ -1,0 +1,61 @@
+name: Build MT6739 Kernel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download kernel source from release
+        run: |
+          gh release download v1.0.0 \
+            --repo hbs990n/android-kernel \
+            --pattern "*.tar.gz" \
+            --dir /tmp
+          mkdir -p /tmp/kernel-4.4
+          tar xzf /tmp/kernel-4.4-mt6739.tar.gz -C /tmp/kernel-4.4
+          ls /tmp/kernel-4.4/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Download toolchain
+        run: |
+          git clone --depth=1 \
+            https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 \
+            /opt/toolchain
+          export PATH=/opt/toolchain/bin:$PATH
+          echo "PATH=/opt/toolchain/bin:$PATH" >> $GITHUB_ENV
+          echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
+
+      - name: Configure kernel
+        run: |
+          cd /tmp/kernel-4.4
+          make ARCH=arm64 dura64_defconfig
+          # Append board-specific config for DRA-AL00
+          cat arch/arm64/configs/dura64_board_AL00A_defconfig >> .config
+          make ARCH=arm64 olddefconfig
+          # Add SELinux default permissive
+          echo "CONFIG_SECURITY_SELINUX_BOOTPARAM_VALUE=0" >> .config
+          # Regenerate
+          make ARCH=arm64 olddefconfig
+          # Verify the change
+          grep SELINUX_BOOTPARAM .config
+
+      - name: Build kernel
+        run: |
+          cd /tmp/kernel-4.4
+          make ARCH=arm64 -j$(nproc) Image.gz-dtb
+          ls -lh arch/arm64/boot/Image.gz-dtb
+
+      - name: Upload kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-Image.gz-dtb
+          path: /tmp/kernel-4.4/arch/arm64/boot/Image.gz-dtb
