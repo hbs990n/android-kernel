@@ -1,85 +1,167 @@
-name: Build MT6739 Kernel
+name: Build MT6739 Kernel - Complete Build
 
 on:
   workflow_dispatch:
+    inputs:
+      keep_going:
+        description: Keep building even if errors occur
+        required: false
+        default: 'true'
   push:
     branches: [ master ]
 
 jobs:
-  import-source:
+  build-kernel:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
-      imported: ${{ steps.check.outputs.imported }}
+      build_status: ${{ steps.build_status.outputs.status }}
+      error_summary: ${{ steps.error_analysis.outputs.error_summary }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check if source already imported
-        id: check
+      - name: Install dependencies
         run: |
-          if [ -f Makefile ]; then
-            echo "imported=true" >> $GITHUB_OUTPUT
-          else
-            echo "imported=false" >> $GITHUB_OUTPUT
-          fi
+          echo "Installing build dependencies..."
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            bison \
+            build-essential \
+            bc \
+            device-tree-compiler \
+            flex \
+            libncurses5-dev \
+            libssl-dev \
+            python3-lib2to3
+          echo "Dependencies installed successfully"
 
-      - name: Import kernel source from release
-        if: steps.check.outputs.imported == 'false'
+      - name: Setup toolchain
         run: |
-          gh release download v1.0.0 \
-            --repo hbs990n/android-kernel \
-            --pattern "*.tar.gz" \
-            --dir /tmp
-          tar xzf /tmp/kernel-4.4-mt6739.tar.gz -C $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE
-          # Fix DrvGen.py for Python 3 with 2to3
-          sudo apt-get install -y -qq python3-lib2to3
-          python3 -m lib2to3 -w tools/dct/DrvGen.py > /dev/null 2>&1
-          # Also fix the shebang line
-          sed -i 's|#!/usr/bin/python2|#!/usr/bin/python3|' tools/dct/DrvGen.py
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git remote set-url origin https://x-access-token:${{ github.token }}@github.com/hbs990n/android-kernel.git
-          git add -A
-          git commit -m "Import kernel source"
-          git push
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-  build-kernel:
-    needs: import-source
-    if: always() && needs.import-source.outputs.imported == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download toolchain
-        run: |
+          echo "Downloading aarch64 toolchain..."
           git clone --depth=1 \
             https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 \
             /opt/toolchain
           echo "PATH=/opt/toolchain/bin:$PATH" >> $GITHUB_ENV
           echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
+          echo "Toolchain setup completed"
 
-      - name: Configure kernel
+      - name: Setup build environment
         run: |
-          make ARCH=arm64 dura64_defconfig
-          cat arch/arm64/configs/dura64_board_AL00A_defconfig >> .config
-          make ARCH=arm64 olddefconfig
-          echo "CONFIG_SECURITY_SELINUX_BOOTPARAM_VALUE=0" >> .config
-          make ARCH=arm64 olddefconfig
-          grep SELINUX_BOOTPARAM .config
+          mkdir -p ../out
+          echo "OUT_DIR=$(pwd)/../out" >> $GITHUB_ENV
 
-      - name: Build kernel
+      - name: Fix Python 2 compatibility
+        continue-on-error: true
         run: |
-          chmod +x tools/dct/DrvGen.py scripts/drvgen/*
-          make ARCH=arm64 -j$(nproc) Image.gz-dtb 2>&1 | tail -50
+          if [ -f tools/dct/DrvGen.py ]; then
+            echo "Converting DrvGen.py to Python 3..."
+            python3 -m lib2to3 -w tools/dct/DrvGen.py > /dev/null 2>&1 || true
+            sed -i 's|#!/usr/bin/python2|#!/usr/bin/python3|' tools/dct/DrvGen.py
+            chmod +x tools/dct/DrvGen.py
+            echo "DrvGen.py fixed"
+          fi
+          if [ -d scripts/drvgen ]; then
+            chmod +x scripts/drvgen/* || true
+            echo "drvgen scripts made executable"
+          fi
 
-      - name: Upload kernel
+      - name: Kernel Configuration
+        continue-on-error: true
+        run: |
+          cd ${{ github.workspace }}
+          export OUT_DIR=$(pwd)/../out
+
+          make ARCH=arm64 O=$OUT_DIR dura64_defconfig 2>&1 | tee /tmp/config.log
+
+          if [ -f arch/arm64/configs/dura64_board_AL00A_defconfig ]; then
+            echo "Applying board configuration..."
+            cat arch/arm64/configs/dura64_board_AL00A_defconfig >> $OUT_DIR/.config
+          fi
+
+          make ARCH=arm64 O=$OUT_DIR olddefconfig 2>&1 | tee -a /tmp/config.log
+
+          echo "CONFIG_SECURITY_SELINUX_BOOTPARAM_VALUE=0" >> $OUT_DIR/.config
+          make ARCH=arm64 O=$OUT_DIR olddefconfig 2>&1 | tee -a /tmp/config.log
+
+          echo "=== SELinux Config ==="
+          grep SELINUX_BOOTPARAM $OUT_DIR/.config
+
+      - name: Build Kernel
+        id: build_kernel
+        continue-on-error: true
+        run: |
+          cd ${{ github.workspace }}
+          export OUT_DIR=$(pwd)/../out
+          NPROC=$(nproc)
+          echo "Using $NPROC CPU cores"
+
+          make ARCH=arm64 O=$OUT_DIR -j$NPROC -k Image.gz-dtb 2>&1 | tee /tmp/build.log
+
+          if [ -f $OUT_DIR/arch/arm64/boot/Image.gz-dtb ]; then
+            echo "BUILD_STATUS=SUCCESS" >> $GITHUB_OUTPUT
+            echo "KERNEL_IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+            ls -lh $OUT_DIR/arch/arm64/boot/Image.gz-dtb
+          else
+            echo "BUILD_STATUS=FAILED" >> $GITHUB_OUTPUT
+            echo "KERNEL_IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Analyze Build Errors
+        id: error_analysis
+        continue-on-error: true
+        run: |
+          if [ ! -f /tmp/build.log ]; then
+            echo "No build log found"
+            exit 0
+          fi
+
+          echo "=== COMPILATION ERRORS ==="
+          grep -i "error:" /tmp/build.log | sort -u | head -30 || echo "None"
+          echo ""
+          echo "=== WARNINGS ==="
+          grep -i "warning:" /tmp/build.log | sort -u | head -30 || echo "None"
+
+          ERROR_COUNT=$(grep -ic "error:" /tmp/build.log)
+          WARNING_COUNT=$(grep -ic "warning:" /tmp/build.log)
+          echo ""
+          echo "=== SUMMARY ==="
+          echo "Errors: $ERROR_COUNT, Warnings: $WARNING_COUNT"
+
+      - name: Set Build Status
+        id: build_status
+        if: always()
+        run: |
+          if [ "${{ steps.build_kernel.outputs.KERNEL_IMAGE_EXISTS }}" = "true" ]; then
+            echo "status=SUCCESS" >> $GITHUB_OUTPUT
+          else
+            echo "status=FAILED" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Kernel Image
+        if: steps.build_kernel.outputs.KERNEL_IMAGE_EXISTS == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: kernel-Image.gz-dtb
-          path: arch/arm64/boot/Image.gz-dtb
+          path: ../out/arch/arm64/boot/Image.gz-dtb
+          retention-days: 30
+
+      - name: Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: /tmp/build.log
+          retention-days: 30
+
+      - name: Build Summary Report
+        if: always()
+        run: |
+          echo "Build Status: ${{ steps.build_status.outputs.status }}"
+          echo ""
+          if [ -f /tmp/build.log ]; then
+            ERROR_COUNT=$(grep -ic "error:" /tmp/build.log)
+            WARNING_COUNT=$(grep -ic "warning:" /tmp/build.log)
+            echo "Errors: $ERROR_COUNT"
+            echo "Warnings: $WARNING_COUNT"
+          fi
