@@ -51,6 +51,8 @@ jobs:
       - name: Build kernel
         run: |
           cd /tmp/kernel-4.4
+          # Fix execute permissions lost during extraction
+          chmod +x tools/dct/DrvGen.py scripts/drvgen/*
           make ARCH=arm64 -j$(nproc) Image.gz-dtb
           ls -lh arch/arm64/boot/Image.gz-dtb
 
