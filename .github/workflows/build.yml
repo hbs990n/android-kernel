@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -48,10 +48,15 @@ jobs:
         run: |
           cd /tmp/kernel-4.4
           chmod +x tools/dct/DrvGen.py scripts/drvgen/*
-          # Install python2 from deadsnakes PPA (Ubuntu 20.04 supports it)
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq python2
+          # Fix DrvGen.py Python 2 -> 3
+          python3 -c "
+import re
+with open('tools/dct/DrvGen.py') as f:
+    c = f.read()
+c = re.sub(r'^print (.)', r'print(\1', c, flags=re.MULTILINE)
+with open('tools/dct/DrvGen.py', 'w') as f:
+    f.write(c)
+"
           make ARCH=arm64 -j$(nproc) Image.gz-dtb
           ls -lh arch/arm64/boot/Image.gz-dtb
 
