@@ -49,14 +49,7 @@ jobs:
           cd /tmp/kernel-4.4
           chmod +x tools/dct/DrvGen.py scripts/drvgen/*
           # Fix DrvGen.py Python 2 -> 3
-          python3 -c "
-import re
-with open('tools/dct/DrvGen.py') as f:
-    c = f.read()
-c = re.sub(r'^print (.)', r'print(\1', c, flags=re.MULTILINE)
-with open('tools/dct/DrvGen.py', 'w') as f:
-    f.write(c)
-"
+          python3 fix_drvgen.py tools/dct/DrvGen.py
           make ARCH=arm64 -j$(nproc) Image.gz-dtb
           ls -lh arch/arm64/boot/Image.gz-dtb
 
