@@ -30,9 +30,14 @@ jobs:
           git clone --depth=1 \
             https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 \
             /opt/toolchain
-          export PATH=/opt/toolchain/bin:$PATH
           echo "PATH=/opt/toolchain/bin:$PATH" >> $GITHUB_ENV
           echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
+
+      - name: Install Python 2
+        run: |
+          sudo add-apt-repository ppa:deadsnakes/ppa -y
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python2
 
       - name: Configure kernel
         run: |
@@ -48,10 +53,7 @@ jobs:
         run: |
           cd /tmp/kernel-4.4
           chmod +x tools/dct/DrvGen.py scripts/drvgen/*
-          # Fix DrvGen.py Python 2 -> 3
-          python3 $GITHUB_WORKSPACE/fix_drvgen.py tools/dct/DrvGen.py
-          make ARCH=arm64 -j$(nproc) Image.gz-dtb
-          ls -lh arch/arm64/boot/Image.gz-dtb
+          make ARCH=arm64 -j$(nproc) Image.gz-dtb 2>&1 | tail -50
 
       - name: Upload kernel
         uses: actions/upload-artifact@v4
