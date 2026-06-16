@@ -6,24 +6,52 @@ on:
     branches: [ master ]
 
 jobs:
-  build-kernel:
+  import-source:
     runs-on: ubuntu-latest
-
+    outputs:
+      imported: ${{ steps.check.outputs.imported }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Download kernel source from release
+      - name: Check if source already imported
+        id: check
+        run: |
+          if [ -f Makefile ]; then
+            echo "imported=true" >> $GITHUB_OUTPUT
+          else
+            echo "imported=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Import kernel source from release
+        if: steps.check.outputs.imported == 'false'
         run: |
           gh release download v1.0.0 \
             --repo hbs990n/android-kernel \
             --pattern "*.tar.gz" \
             --dir /tmp
-          mkdir -p /tmp/kernel-4.4
-          tar xzf /tmp/kernel-4.4-mt6739.tar.gz -C /tmp/kernel-4.4
-          ls /tmp/kernel-4.4/
+          tar xzf /tmp/kernel-4.4-mt6739.tar.gz -C $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE
+          # Fix DrvGen.py for Python 3 with 2to3
+          sudo apt-get install -y -qq python3-lib2to3
+          2to3-3.12 -w tools/dct/DrvGen.py > /dev/null 2>&1
+          # Also fix the shebang line
+          sed -i 's|#!/usr/bin/python2|#!/usr/bin/python3|' tools/dct/DrvGen.py
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Import kernel source"
+          git push
         env:
           GH_TOKEN: ${{ github.token }}
+
+  build-kernel:
+    needs: import-source
+    if: always() && needs.import-source.outputs.imported == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Download toolchain
         run: |
@@ -33,15 +61,8 @@ jobs:
           echo "PATH=/opt/toolchain/bin:$PATH" >> $GITHUB_ENV
           echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
 
-      - name: Install Python 2
-        run: |
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq python2
-
       - name: Configure kernel
         run: |
-          cd /tmp/kernel-4.4
           make ARCH=arm64 dura64_defconfig
           cat arch/arm64/configs/dura64_board_AL00A_defconfig >> .config
           make ARCH=arm64 olddefconfig
@@ -51,7 +72,6 @@ jobs:
 
       - name: Build kernel
         run: |
-          cd /tmp/kernel-4.4
           chmod +x tools/dct/DrvGen.py scripts/drvgen/*
           make ARCH=arm64 -j$(nproc) Image.gz-dtb 2>&1 | tail -50
 
@@ -59,4 +79,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-Image.gz-dtb
-          path: /tmp/kernel-4.4/arch/arm64/boot/Image.gz-dtb
+          path: arch/arm64/boot/Image.gz-dtb
