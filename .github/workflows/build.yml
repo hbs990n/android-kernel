@@ -30,9 +30,13 @@ jobs:
 
       - name: Fix Python 2 code
         run: |
-          python3 -m lib2to3 -w tools/dct/DrvGen.py > /dev/null 2>&1 || true
-          python3 -m lib2to3 -w tools/dct/obj/*.py > /dev/null 2>&1 || true
+          python3 -m lib2to3 -w tools/dct/DrvGen.py 2>&1
+          python3 -m lib2to3 -w tools/dct/obj/*.py 2>&1
           sed -i 's|/usr/bin/python|/usr/bin/python3|' tools/dct/DrvGen.py
+          sed -i 's/^import ConfigParser$/import configparser/' tools/dct/obj/*.py
+          sed -i 's/\bConfigParser\./configparser./g' tools/dct/obj/*.py
+          sed -i 's/string\.atoi/int/g' tools/dct/obj/*.py
+          python3 -c "from configparser import ConfigParser; print('configparser OK')"
 
       - name: Fix dtc yylloc
         run: |
@@ -47,7 +51,7 @@ jobs:
         id: build
         continue-on-error: true
         env:
-          KBUILD_HOSTCFLAGS: "-I${{ github.workspace }}/security/selinux/include"
+          HOST_EXTRACFLAGS: "-I${{ github.workspace }}/security/selinux/include"
         run: |
           export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
           make ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
