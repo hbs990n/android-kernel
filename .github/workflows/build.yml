@@ -38,6 +38,11 @@ jobs:
         run: |
           sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c
 
+      - name: Fix selinux include paths
+        run: |
+          sed -i 's|-Isecurity/selinux/include|-I$(srctree)/security/selinux/include|' \
+            scripts/selinux/genheaders/Makefile scripts/selinux/mdp/Makefile
+
       - name: Configure kernel
         run: |
           make ARCH=arm64 O=../out dura64_defconfig
