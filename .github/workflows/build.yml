@@ -38,11 +38,6 @@ jobs:
         run: |
           sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c
 
-      - name: Fix selinux include paths
-        run: |
-          sed -i 's|-Isecurity/selinux/include|-I$(srctree)/security/selinux/include|' \
-            scripts/selinux/genheaders/Makefile scripts/selinux/mdp/Makefile
-
       - name: Configure kernel
         run: |
           make ARCH=arm64 O=../out dura64_defconfig
@@ -51,6 +46,8 @@ jobs:
       - name: Build kernel
         id: build
         continue-on-error: true
+        env:
+          KBUILD_HOSTCFLAGS: "-I${{ github.workspace }}/security/selinux/include"
         run: |
           export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
           make ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
