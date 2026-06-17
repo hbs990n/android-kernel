@@ -2,8 +2,6 @@ name: Build MT6739 Kernel (Custom)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ master ]
 
 jobs:
   build:
@@ -36,7 +34,6 @@ jobs:
 
       - name: Apply custom patches
         run: |
-          # SELinux default permissive (fixes fsck.f2fs sys_resource denial)
           sed -i 's/CONFIG_SECURITY_SELINUX_BOOTPARAM_VALUE=1/CONFIG_SECURITY_SELINUX_BOOTPARAM_VALUE=0/' \
             arch/arm64/configs/dura64_defconfig
 
