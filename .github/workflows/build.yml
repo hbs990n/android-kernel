@@ -91,7 +91,8 @@ jobs:
         continue-on-error: true
         run: |
           echo "=== Build start ==="
-          make HOSTCFLAGS="-fno-common" ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
+          export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
+          make ARCH=arm64 O=../out -j$(nproc) -k HOST_EXTRACFLAGS="-fcommon" Image.gz-dtb 2>&1 | tee /tmp/build.log
           echo ""
           echo "=== Build result ==="
           if [ -f ../out/arch/arm64/boot/Image.gz-dtb ]; then
