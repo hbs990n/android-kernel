@@ -69,7 +69,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-Image.gz-dtb
-          path: ../out/arch/arm64/boot/Image.gz-dtb
+          path: ${{ github.workspace }}/../out/arch/arm64/boot/Image.gz-dtb
           retention-days: 30
 
       - name: Upload build log
