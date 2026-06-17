@@ -17,7 +17,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            bison build-essential bc flex libncurses5-dev libssl-dev python3-lib2to3
+            bison build-essential bc flex libncurses5-dev libssl-dev \
+            python3-lib2to3 python-is-python3
 
       - name: Setup toolchain
         run: |
@@ -30,7 +31,7 @@ jobs:
       - name: Fix DrvGen.py
         run: |
           python3 -m lib2to3 -w tools/dct/DrvGen.py > /dev/null 2>&1 || true
-          sed -i 's|/usr/bin/python2|/usr/bin/python3|' tools/dct/DrvGen.py
+          sed -i 's|/usr/bin/python|/usr/bin/python3|' tools/dct/DrvGen.py
           chmod +x tools/dct/DrvGen.py
 
       - name: Configure kernel
@@ -42,6 +43,8 @@ jobs:
         id: build
         continue-on-error: true
         run: |
+          export HOSTCFLAGS="-fno-common"
+          export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
           make ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
           if [ -f ../out/arch/arm64/boot/Image.gz-dtb ]; then
             echo "BUILD_OK=true" >> $GITHUB_OUTPUT
