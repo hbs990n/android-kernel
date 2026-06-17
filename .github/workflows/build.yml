@@ -6,123 +6,55 @@ on:
     branches: [ master ]
 
 jobs:
-  build-kernel:
-    runs-on: ubuntu-22.04
+  build:
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: System info
-        run: |
-          echo "=== OS ==="
-          cat /etc/os-release
-          echo ""
-          echo "=== Kernel ==="
-          uname -a
-          echo ""
-          echo "=== GCC ==="
-          gcc --version 2>&1 || echo "gcc: NOT FOUND"
-          echo ""
-          echo "=== Python ==="
-          python --version 2>&1 || echo "python: NOT FOUND"
-          python2 --version 2>&1 || echo "python2: NOT FOUND"
-          python3 --version 2>&1 || echo "python3: NOT FOUND"
-          echo ""
-          echo "=== binutils ld ==="
-          ld --version 2>&1 | head -1 || echo "ld: NOT FOUND"
-          echo ""
-          echo "=== Make ==="
-          make --version 2>&1 | head -1 || echo "make: NOT FOUND"
-
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            bison build-essential bc flex libncurses5-dev libssl-dev \
-            python3-lib2to3 python-is-python3
-          echo ""
-          echo "=== After install: python ==="
-          python --version 2>&1 || echo "python: STILL NOT FOUND"
-          echo ""
-          echo "=== GCC ==="
-          gcc --version 2>&1 | head -1
-          echo ""
-          echo "=== ld ==="
-          ld --version 2>&1 | head -1
+            bison build-essential bc flex libncurses5-dev libssl-dev
 
       - name: Setup toolchain
         run: |
           git clone --depth=1 \
             https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 \
-            /opt/toolchain 2>&1
-          echo ""
-          echo "=== Toolchain ==="
-          /opt/toolchain/bin/aarch64-linux-android-gcc --version 2>&1 | head -1 || echo "aarch64-linux-android-gcc: NOT FOUND"
-          file /opt/toolchain/bin/aarch64-linux-android-gcc 2>&1 || true
+            /opt/toolchain
           echo "/opt/toolchain/bin" >> $GITHUB_PATH
           echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
 
-      - name: Fix Python 2 code
-        run: |
-          echo "=== Converting DrvGen.py ==="
-          python3 -m lib2to3 -w tools/dct/DrvGen.py 2>&1 | tail -3 || true
-          sed -i 's|/usr/bin/python|/usr/bin/python3|' tools/dct/DrvGen.py
-          echo ""
-          echo "=== Converting obj/*.py ==="
-          python3 -m lib2to3 -w tools/dct/obj/*.py 2>&1 | tail -3 || true
-          echo ""
-          echo "=== Fixing dtc yylloc ==="
-          sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c
-          grep 'yylloc' scripts/dtc/dtc-lexer.lex.c | head -3
-
       - name: Configure kernel
         run: |
-          echo "=== defconfig ==="
-          make ARCH=arm64 O=../out dura64_defconfig 2>&1 | tail -5
-          echo ""
-          make ARCH=arm64 O=../out olddefconfig 2>&1 | tail -5
-          echo ""
-          echo "=== SELinux config ==="
-          grep SELINUX_BOOTPARAM ../out/.config || echo "SELINUX_BOOTPARAM not set"
+          make ARCH=arm64 O=../out dura64_defconfig
+          make ARCH=arm64 O=../out olddefconfig
 
       - name: Build kernel
         id: build
         continue-on-error: true
         run: |
-          echo "=== Build start ==="
-          export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
           make ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
-          echo ""
-          echo "=== Build result ==="
           if [ -f ../out/arch/arm64/boot/Image.gz-dtb ]; then
             ls -lh ../out/arch/arm64/boot/Image.gz-dtb
             echo "BUILD_OK=true" >> $GITHUB_OUTPUT
           else
-            echo "Image.gz-dtb: NOT FOUND"
             echo "BUILD_OK=false" >> $GITHUB_OUTPUT
-            echo ""
-            echo "=== Last 30 lines of build log ==="
-            tail -30 /tmp/build.log
           fi
 
       - name: Error analysis
         if: steps.build.outputs.BUILD_OK == 'false'
         run: |
-          echo "=== ERROR SUMMARY ==="
-          grep -n "error:" /tmp/build.log | grep -v "warning:" | head -40 || echo "No errors found"
+          echo "=== ERRORS ==="
+          grep -n "error:" /tmp/build.log | grep -v "warning:" | head -30
           echo ""
-          echo "=== MODULE NOT FOUND ERRORS ==="
+          echo "=== MODULE NOT FOUND ==="
           grep -i "ModuleNotFoundError\|No module named\|ImportError" /tmp/build.log | head -10 || echo "None"
           echo ""
-          echo "=== COMPILER/LINKER ERRORS ==="
-          grep -E "(collect2:|multiple definition|cannot find|command not found)" /tmp/build.log | head -10 || echo "None"
-          echo ""
-          echo "=== WARNINGS ==="
-          grep -c "warning:" /tmp/build.log || echo "0"
-          echo ""
-          echo "=== ERRORS COUNT ==="
-          grep -c "error:" /tmp/build.log || echo "0"
+          echo "=== COMPILER ERRORS ==="
+          grep -E "collect2:|multiple definition|cannot find|fatal error" /tmp/build.log | head -10 || echo "None"
 
       - name: Upload Image.gz-dtb
         if: steps.build.outputs.BUILD_OK == 'true'
