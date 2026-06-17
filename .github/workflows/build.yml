@@ -28,12 +28,10 @@ jobs:
           echo "/opt/toolchain/bin" >> $GITHUB_PATH
           echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
 
-      - name: Fix scripts executable and dtc yylloc
+      - name: Fix permissions and dtc yylloc
         run: |
-          find scripts/ arch/arm64/kernel/vdso/ -type f \
-            \( -exec grep -q '^#!' {} \; \
-               -o -exec sh -c 'head -c4 "$1" | grep -q "$(printf \\x7fELF)"' _ {} \; \) \
-            2>/dev/null | xargs -r chmod +x
+          find scripts/ -type f -exec chmod +x {} +
+          chmod +x arch/arm64/kernel/vdso/gen_vdso_offsets.sh
           sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped
 
       - name: Configure kernel
