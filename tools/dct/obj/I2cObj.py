@@ -33,7 +33,7 @@ class I2cObj(ModuleObj):
         #self.__bBusEnable = True
 
     def get_cfgInfo(self):
-        cp = configparser.ConfigParser(allow_no_value=True)
+        cp = configparser.ConfigParser(strict=False, allow_no_value=True)
         cp.read(ModuleObj.get_figPath())
 
         I2cData._i2c_count = int(cp.get('I2C', 'I2C_COUNT'))
