@@ -63,6 +63,7 @@ jobs:
           HOST_EXTRACFLAGS: "-I${{ github.workspace }}/security/selinux/include"
         run: |
           export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
+          make ARCH=arm64 O=../out -j$(nproc) prepare 2>&1
           make ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
           if [ -f ../out/arch/arm64/boot/Image.gz-dtb ]; then
             ls -lh ../out/arch/arm64/boot/Image.gz-dtb
