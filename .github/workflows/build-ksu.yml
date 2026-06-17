@@ -56,6 +56,11 @@ jobs:
         run: |
           sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped
 
+      - name: Fix permissions
+        run: |
+          chmod +x arch/arm64/kernel/vdso/gen_vdso_offsets.sh
+          chmod -R +x scripts/
+
       - name: Build kernel
         id: build
         continue-on-error: true
