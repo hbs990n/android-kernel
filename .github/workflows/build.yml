@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,7 +17,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            bison build-essential bc flex libncurses5-dev libssl-dev
+            bison build-essential bc flex libncurses5-dev libssl-dev \
+            python3-lib2to3 python-is-python3
 
       - name: Setup toolchain
         run: |
@@ -26,6 +27,16 @@ jobs:
             /opt/toolchain
           echo "/opt/toolchain/bin" >> $GITHUB_PATH
           echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
+
+      - name: Fix Python 2 code
+        run: |
+          python3 -m lib2to3 -w tools/dct/DrvGen.py > /dev/null 2>&1 || true
+          python3 -m lib2to3 -w tools/dct/obj/*.py > /dev/null 2>&1 || true
+          sed -i 's|/usr/bin/python|/usr/bin/python3|' tools/dct/DrvGen.py
+
+      - name: Fix dtc yylloc
+        run: |
+          sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c
 
       - name: Configure kernel
         run: |
@@ -36,6 +47,7 @@ jobs:
         id: build
         continue-on-error: true
         run: |
+          export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
           make ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
           if [ -f ../out/arch/arm64/boot/Image.gz-dtb ]; then
             ls -lh ../out/arch/arm64/boot/Image.gz-dtb
@@ -50,11 +62,11 @@ jobs:
           echo "=== ERRORS ==="
           grep -n "error:" /tmp/build.log | grep -v "warning:" | head -30
           echo ""
-          echo "=== MODULE NOT FOUND ==="
-          grep -i "ModuleNotFoundError\|No module named\|ImportError" /tmp/build.log | head -10 || echo "None"
+          echo "=== MODULE/MISSING ==="
+          grep -i "ModuleNotFoundError\|No module named\|ImportError\|fatal error" /tmp/build.log | head -10 || echo "None"
           echo ""
-          echo "=== COMPILER ERRORS ==="
-          grep -E "collect2:|multiple definition|cannot find|fatal error" /tmp/build.log | head -10 || echo "None"
+          echo "=== LINKER ERRORS ==="
+          grep -E "collect2:|multiple definition|cannot find" /tmp/build.log | head -10 || echo "None"
 
       - name: Upload Image.gz-dtb
         if: steps.build.outputs.BUILD_OK == 'true'
