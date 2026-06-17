@@ -84,7 +84,7 @@ class EintObj(ModuleObj):
         ModuleObj.gen_spec(self, para)
 
     def get_cfgInfo(self):
-        cp = configparser.ConfigParser(allow_no_value=True)
+        cp = configparser.ConfigParser(strict=False, allow_no_value=True)
         cp.read(ModuleObj.get_figPath())
 
         ops = cp.options('GPIO')
