@@ -1,4 +1,4 @@
-name: Build MT6739 Kernel with KernelSU
+﻿name: Build MT6739 Kernel with KernelSU
 
 on:
   workflow_dispatch:
@@ -33,9 +33,10 @@ jobs:
 
       - name: Integrate KernelSU into kernel source
         run: |
+          mkdir -p drivers/kernelsu/
           cp -r /tmp/KernelSU/kernel/* drivers/kernelsu/
-          cd /tmp/KernelSU
-          python3 kernel/ksu_integration.py ${{ github.workspace }}
+          sed -i '/^obj-\$(CONFIG_)/a obj-\$(CONFIG_KSU) += kernelsu/' drivers/Makefile
+          sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' drivers/Kconfig
 
       - name: Fix Python 2 code
         run: |
@@ -85,3 +86,5 @@ jobs:
           name: build-log-ksu
           path: /tmp/build.log
           retention-days: 30
+
+
