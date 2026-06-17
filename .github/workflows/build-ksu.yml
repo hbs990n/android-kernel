@@ -79,10 +79,15 @@ jobs:
 
       - name: Upload Image.gz-dtb
         if: steps.build.outputs.BUILD_OK == 'true'
+        run: |
+          cp ../out/arch/arm64/boot/Image.gz-dtb Image.gz-dtb
+
+      - name: Upload artifact
+        if: steps.build.outputs.BUILD_OK == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: kernel-Image.gz-dtb-ksu
-          path: ../out/arch/arm64/boot/Image.gz-dtb
+          path: Image.gz-dtb
           retention-days: 30
 
       - name: Upload build log
