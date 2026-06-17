@@ -52,10 +52,9 @@ jobs:
           make ARCH=arm64 O=../out dura64_defconfig
           make ARCH=arm64 O=../out olddefconfig
 
-      - name: Build DTC tools and fix yylloc
+      - name: Fix dtc yylloc
         run: |
-          make ARCH=arm64 O=../out scripts/dtc 2>&1 || true
-          sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' ../out/scripts/dtc/dtc-lexer.lex.c 2>/dev/null || true
+          sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped
 
       - name: Build kernel
         id: build
