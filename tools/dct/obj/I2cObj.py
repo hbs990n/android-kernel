@@ -17,12 +17,12 @@ import string
 import xml.dom.minidom
 import configparser
 
-from .ModuleObj import ModuleObj
+from ModuleObj import ModuleObj
 #from utility import util
 from utility.util import sorted_key
 from data.I2cData import I2cData
 from data.I2cData import BusData
-from . import ChipObj
+import ChipObj
 
 class I2cObj(ModuleObj):
     _busList = []
