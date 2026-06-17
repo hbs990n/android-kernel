@@ -61,7 +61,7 @@ class ClkObj(ModuleObj):
         return True
 
     def get_cfgInfo(self):
-        cp = configparser.ConfigParser(allow_no_value=True)
+        cp = configparser.ConfigParser(strict=False, allow_no_value=True)
         cp.read(ModuleObj.get_figPath())
 
         count = int(cp.get('CLK_BUF', 'CLK_BUF_COUNT'))
@@ -358,7 +358,7 @@ class ClkObj_Rushmore(ClkObj):
         ClkObj.parse(self, node)
 
     def get_cfgInfo(self):
-        cp = configparser.ConfigParser(allow_no_value=True)
+        cp = configparser.ConfigParser(strict=False, allow_no_value=True)
         cp.read(ModuleObj.get_figPath())
 
         count = int(cp.get('CLK_BUF', 'CLK_BUF_COUNT'))
