@@ -17,8 +17,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            bison build-essential bc flex libncurses5-dev libssl-dev \
-            python3-lib2to3 python-is-python3
+            bison build-essential bc flex libncurses5-dev libssl-dev
 
       - name: Setup toolchain
         run: |
@@ -27,18 +26,6 @@ jobs:
             /opt/toolchain
           echo "/opt/toolchain/bin" >> $GITHUB_PATH
           echo "CROSS_COMPILE=aarch64-linux-android-" >> $GITHUB_ENV
-
-      - name: Fix Python 2 code
-        run: |
-          python3 -m lib2to3 -w tools/dct/DrvGen.py 2>&1 || true
-          python3 -m lib2to3 -w tools/dct/obj/*.py 2>&1 || true
-          sed -i 's|/usr/bin/python|/usr/bin/python3|' tools/dct/DrvGen.py
-          sed -i 's/^import ConfigParser$/import configparser/' tools/dct/obj/*.py
-          sed -i 's/\bConfigParser\./configparser./g' tools/dct/obj/*.py
-          sed -i 's/string\.atoi/int/g' tools/dct/obj/*.py
-          python3 -c "from configparser import ConfigParser; print('configparser OK')"
-          echo "=== Verify ConfigParser fix ==="
-          grep -n "import configparser\|import ConfigParser\|configparser\.\|string\.atoi" tools/dct/obj/GpioObj.py | head -5
 
       - name: Fix dtc yylloc
         run: |
@@ -52,8 +39,6 @@ jobs:
       - name: Build kernel
         id: build
         continue-on-error: true
-        env:
-          HOST_EXTRACFLAGS: "-I${{ github.workspace }}/security/selinux/include"
         run: |
           export PYTHONPATH=$(pwd)/tools/dct/obj:$PYTHONPATH
           make ARCH=arm64 O=../out -j$(nproc) -k Image.gz-dtb 2>&1 | tee /tmp/build.log
