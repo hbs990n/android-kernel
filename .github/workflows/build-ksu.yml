@@ -47,10 +47,6 @@ jobs:
           sed -i 's/\bConfigParser\./configparser./g' tools/dct/obj/*.py
           sed -i 's/string\.atoi/int/g' tools/dct/obj/*.py
 
-      - name: Fix dtc yylloc
-        run: |
-          sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c
-
       - name: Configure kernel
         run: |
           make ARCH=arm64 O=../out dura64_defconfig
