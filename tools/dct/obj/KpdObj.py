@@ -29,7 +29,7 @@ class KpdObj(ModuleObj):
 
 
     def get_cfgInfo(self):
-        cp = configparser.ConfigParser(allow_no_value=True)
+        cp = configparser.ConfigParser(strict=False, allow_no_value=True)
         cp.read(ModuleObj.get_cmpPath())
 
         ops = cp.options('Key_definition')
